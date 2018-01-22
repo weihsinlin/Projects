@@ -1,0 +1,523 @@
+---
+title: "Stat 154 - Fall 2017, Final Project"
+date: "Due date: December 10, 2017"
+output: github_document
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(stringr)
+```
+
+
+## Submission Instructions
+
+The final project is a practical project to be done individually or in a team of 2 members max (no teams with more than 2 members allowed). 
+
+You will receive a link to a google sheet to be filled in with your team's name, the member names, and the corresponding email addresses.
+
+Each team will be invited to a BOX folder (via bConnected): [https://berkeley.account.box.com/login](https://berkeley.account.box.com/login). You should be able to log in using the email that appears on CalCentral (e.g. typically your `berkeley.edu` email).
+
+Each team must submit all the materials of their final project to the shared BOX folder.
+
+Each team's folder must contain a `README` file explaining the structure of the project. Here's a sample file structure of how your BOX folder may look like:
+
+```
+  team01/
+     README.md
+     data/
+        ... # all the data files
+     R/
+        ... # all you R files here
+     report/
+        ... # mainly the pdf file
+        ... # (you could use an Rmd file)
+```
+
+You can add more folders to the previous file structure.
+
+You must produce a single PDF file for the report.
+
+
+## Data
+
+The data set for this project is the [Census Income Data Set](https://archive.ics.uci.edu/ml/datasets/Census+Income) 
+donated by Ronny Kohavi and Barry Becker to the UCI Machine Learning Repository. 
+
+The data set describes 15 variables on a sample of individuals from the US
+Census database. The prediction task is to determine whether a person makes 
+over 50K a year.
+
+```{r}
+# Read in training set
+train = read.csv("data/adult.data", header = FALSE)
+names(train) = c('age', 'workclass', 'fnlwgt', 'education', 'education.num', 'marital.status', 'occupation', 'relationship', 'race', 'sex', 'capital.gain', 'capital.loss', 'hours.per.week', 'native.country', 'income')
+
+# Read in test set
+test = read.csv("data/adult.test", header = FALSE)
+names(test) = c('age', 'workclass', 'fnlwgt', 'education', 'education.num', 'marital.status', 'occupation', 'relationship', 'race', 'sex', 'capital.gain', 'capital.loss', 'hours.per.week', 'native.country', 'income')
+```
+
+#### Match up The Response Variable
+
+```{r}
+dat = train
+
+dat_test = test
+levels(dat_test$income) = levels(dat$income)
+```
+
+## Preprocessing and Exploratory Data Analysis
+
+Start your analysis cycle with an exploratory phase so you get to know and understand the data set. Below is a (non-comprehensive) list of (optional) considerations to keep in mind:
+
+- Handling missing values
+- Handling outliers
+- Changing scales
+- Binning (i.e. discretizing)
+- Converting to (dummy) indicators
+- Summary statistics
+- Visualizing distributions
+- Association between each predictor and the response
+
+```{r}
+summary(dat)
+```
+```{r}
+summary(dat_test)
+```
+
+#### Visualizing Distributions of Raw Data
+
+```{r}
+library(ggplot2)
+num_var = which(sapply(dat, class) != "factor")
+cat_var = which(sapply(dat, class) == "factor")
+g = ggplot(dat)
+for(i in num_var) {
+  # gi = g + geom_point(aes(x = 1:nrow(dat), y = dat[, i])) + labs(x = "index", y = names(dat)[1])
+  # print(gi)
+  print(g + geom_density(aes(x = dat[, i])) + xlab(names(dat)[i]))
+}
+
+for(i in cat_var) {
+  gi = g + geom_bar(aes(x = dat[, i])) + xlab(names(dat)[i])
+  print(gi)
+}
+
+
+```
+
+#### Handling Missing Values
+
+```{r}
+# By looking at the summary statistic and the outputs below, there seems to be no missing values in variables age, fnlwgt, education, education-num, marital-status, relationship, race, sex, hours-per-week, and income. 
+# Therefore, for these variables, we do not need to handle the missing values. 
+unique(dat$education)
+unique(dat$occupation)
+unique(dat$native.country)
+
+# workclass
+# Seems like there are only small number (1836 comparing to 32561) of workclass is missing, so I choose to omit the observations. 
+rmIndexWC = which(dat$workclass == " ?")
+length(rmIndexWC)
+
+# occupation
+# Seems like there are only small number (1843 comparing to 32561) of occupation is missing, so I choose to omit the observations. 
+rmIndexOC = which(dat$occupation == " ?")
+length(rmIndexOC)
+
+# native-country
+# Seems like there are only small number (583 comparing to 32561) of native-country is missing, so I choose to omit the observations. 
+rmIndexNC = which(dat$native.country == " ?")
+length(rmIndexNC)
+
+
+# Also noticed that there are some data have more than one missing values across workclass, occupation, and native-country, which means that we don't really have to delete that many observations from our training data. 
+sum(rmIndexOC == rmIndexWC)
+
+# capital-gain
+# capital-loss
+# Since there are too many missing values in 'capital-gain' and 'capital-loss', I choose to omit these two variables 
+n = nrow(dat)
+n
+sum(dat$capital.gain == 0)
+sum(dat$capital.loss == 0)
+
+rmIndex = unique(c(rmIndexNC, rmIndexOC, rmIndexWC))
+dat = dat[-rmIndex, -c(11, 12)]
+dat_test = dat_test[, -c(11, 12)]
+dim(dat)
+# After removing missing values, we still have 30162 observations, which is still large, so we are good to go. 
+```
+
+```{r}
+n = nrow(dat)
+full = rbind(dat, dat_test)
+dat = full[1:n, ]
+dat_test = full[(n+1):nrow(full), ]
+```
+
+#### Changing Scale
+
+```{r}
+num_var = which(sapply(dat, class) != "factor")
+cat_var = which(sapply(dat, class) == "factor")
+
+# Only change the scales of numerical variables
+# It doesn't really make sense to transform the categorical variables
+for(i in num_var) {
+  dat[, i] = as.numeric(scale(dat[, i]))
+  m = mean(dat[, i])
+  s = sd(dat[, i])
+  dat_test[, i] = as.numeric(scale(dat_test[, i], center = m, scale = s))
+}
+
+```
+
+#### Visualizing Distributions after Cleaning
+
+```{r}
+library(ggplot2)
+g = ggplot(dat)
+for(i in num_var) {
+  # gi = g + geom_point(aes(x = 1:nrow(dat), y = dat[, i])) + labs(x = "index", y = names(dat)[1])
+  # print(gi)
+  print(g + geom_density(aes(x = dat[, i])) + xlab(names(dat)[i]))
+}
+
+
+for(i in cat_var) {
+  gi = g + geom_bar(aes(x = dat[, i])) + xlab(names(dat)[i])
+  print(gi)
+}
+
+```
+
+#### Association between each predictor and the response
+
+```{r}
+for(i in 1:(ncol(dat)-1)) {
+  r = cor(as.numeric(dat[, i]), as.numeric(dat$income))
+  print(paste("The correlation between", names(dat)[i], "and income is", round(r, 4)))
+}
+
+
+```
+
+### Build a Classification Tree
+
+- Fit a classification tree (see examples in ISL chapter 8, and APM chapter 14).
+- Make plots and describe the steps you took to justify choosing optimal tuning parameters.
+- Report your 5 (or 6 or 7) important features (could be either just 5, or 6 or 7), with their variable importance statistics.
+- Report the training accuracy rate.
+- Plot the ROC curve, and report its area under the curve (AUC) statistic.
+
+#### Model
+
+```{r}
+library(rpart)
+
+# Naively use rpart default
+set.seed(303)
+rp = rpart(income ~., data = dat)
+plot(rp)
+text(rp)
+printcp(rp)
+```
+
+
+#### Parameter Tuning
+
+```{r}
+set.seed(226)
+tun_rp = rpart(income ~., data = dat, cp = .001)
+printcp(tun_rp)
+plot(tun_rp$cptable[-1, 1], tun_rp$cptable[-1, 4], xlab = "Complexity Parameter", ylab = "Cross-Validation Error")
+lines(tun_rp$cptable[-1, 1], tun_rp$cptable[-1, 4])
+```
+
+Noticed that all the complexity parameters below 0.002 have about the same crossvalidation error. To avoid overfit the data, choose cp = 0.002 for less number of splits. 
+
+
+#### Model Selected and Training Accuracy
+
+```{r}
+# Choose 0.002 as my new cp
+rp1 = rpart(income ~., data = dat, cp = .0022)
+plot(rp1)
+text(rp1)
+
+accuracy = mean((predict(rp1)[, 2] > 0.5) == (dat$income == levels(dat$income)[2]))
+accuracy
+```
+
+
+#### ROC Curve and AUC
+
+```{r}
+library(ROCR)
+y = as.numeric(dat$income == levels(dat$income)[2])
+classified = as.numeric(predict(rp1)[, 2] > 0.5)
+pred_roc = prediction(classified, y)
+roc = performance(pred_roc, measure = "tpr", x.measure = "fpr") 
+plot(roc)
+abline(0, 1, lty = 2)
+roc_per = performance(pred_roc, measure="auc") 
+auc = slot(roc_per, 'y.values')[[1]]
+paste("The AUC statistic of the selected model is", round(auc, 4))
+```
+
+
+### Build a Bagged Tree
+
+- Train a Random Forest classifier (see examples in ISL chapter 8, and APM chapter 14)
+- Make plots and describe the steps you took to justify choosing optimal tuning parameters.
+- Report your 5 (or 6 or 7) important features (could be either just 5, or 6 or 7), with their variable importance statistics.
+- Report the training accuracy rate.
+- Plot the ROC curve, and report its area under the curve (AUC) statistic.
+
+#### Model
+
+```{r}
+library(randomForest)
+bag = randomForest(income ~., data = dat, mtry = ncol(dat)-1, ntree = 1, importance = TRUE)
+bag
+```
+
+#### Parameter Tuning
+
+```{r}
+library(caret)
+n = nrow(dat)
+B = seq(200, 350, 15)
+
+# B = seq(100, 200, 10)
+# B = seq(50, 120, 10)
+# B = seq(10, 60, 10)
+
+set.seed(0336)
+folds = createFolds(1:n)
+
+acc_mat = matrix(0, length(B), 10)
+j = 1
+for(fold in folds) {
+  cv_train = dat[-fold, ]
+  cv_test = dat[fold, ]
+  acc = c()
+  for(i in 1:length(B)) {
+    bag = randomForest(income ~., mtry = ncol(dat)-1, data = dat, ntree = B[i])
+    pred = predict(bag, cv_test)
+    acc[i] = mean(pred == cv_test$income)
+  }
+  acc_mat[, j] = acc
+  j = j + 1
+}
+acc_mat
+xacc = rowMeans(acc_mat)
+xacc
+plot(B, xacc, xlab = "Number of Trees", ylab = "Accuracy")
+lines(B, xacc)
+best_B = B[which.max(xacc)]
+best_B
+# 200
+
+```
+
+#### Model Selected, Training Accuracy, and Importance
+
+```{r}
+bag = randomForest(income ~., data = dat, mtry = ncol(dat)-1, ntree = best_B, importance = TRUE)
+impor = importance(bag)
+MDA = sort(impor[, 3], decreasing = TRUE)
+gini = sort(impor[, 4], decreasing = TRUE)
+varImpPlot(bag)
+paste("By looking at Mean Decrease Accuracy, the 5 most important features and its variable importance statistics are")
+MDA[1:5]
+paste("By looking at Mean Decrease Gini, the 5 most important features and its variable importance statistics are")
+gini[1:5]
+```
+
+
+```{r}
+accuracy_bag = (bag$confusion[1, 1] + bag$confusion[2, 2]) / n
+accuracy_bag
+```
+
+#### ROC Curve and AUC
+
+```{r}
+y = as.numeric(dat$income == levels(dat$income)[2])
+classified = as.numeric(predict(bag) == levels(dat$income)[2])
+pred_roc = prediction(classified, y)
+roc = performance(pred_roc, measure = "tpr", x.measure = "fpr") 
+plot(roc)
+abline(0, 1, lty = 2)
+roc_per = performance(pred_roc, measure="auc") 
+auc = slot(roc_per, 'y.values')[[1]]
+paste("The AUC statistic of the selected model is", round(auc, 4))
+```
+
+
+### Build a Random Forest
+
+- Train a Random Forest classifier (see examples in ISL chapter 8, and APM chapter 14)
+- Make plots and describe the steps you took to justify choosing optimal tuning parameters.
+- Report your 5 (or 6 or 7) important features (could be either just 5, or 6 or 7), with their variable importance statistics.
+- Report the training accuracy rate.
+- Plot the ROC curve, and report its area under the curve (AUC) statistic.
+
+#### Model
+
+```{r}
+rf = randomForest(income ~., data = dat, mtry = ncol(dat)-1, ntree = best_B, importance = TRUE)
+rf
+```
+
+#### Parameter Tuning
+
+```{r}
+n = nrow(dat)
+V = 1:(ncol(dat)-1)
+
+acc_mat = matrix(0, length(V), 10)
+j = 1
+acc = c()
+for(fold in folds) {
+  cv_train = dat[-fold, ]
+  cv_test = dat[fold, ]
+  for(i in V) {
+    rf = randomForest(income ~., data = dat, mtry = i, ntree = best_B)
+    pred = predict(rf, cv_test)
+    acc[i] = mean(pred == cv_test$income)
+  }
+  acc_mat[, j] = acc
+  j = j + 1
+}
+acc_mat
+xacc = rowMeans(acc_mat)
+xacc
+plot(V, xacc, xlab = "Number of Predictors Considered", ylab = "Accuracy")
+lines(V, xacc)
+best_V = which.max(xacc)
+best_V
+# 11
+```
+
+#### Model Selected, Training Accuracy, and Importance
+
+```{r}
+rf = randomForest(income ~., data = dat, mtry = best_V, ntree = best_B, importance = TRUE)
+impor = importance(rf)
+MDA = sort(impor[, 3], decreasing = TRUE)
+gini = sort(impor[, 4], decreasing = TRUE)
+varImpPlot(rf)
+paste("By looking at Mean Decrease Accuracy, the 5 most important features and its variable importance statistics are")
+MDA[1:5]
+paste("By looking at Mean Decrease Gini, the 5 most important features and its variable importance statistics are")
+gini[1:5]
+```
+
+
+```{r}
+accuracy_rf = (rf$confusion[1, 1] + rf$confusion[2, 2]) / n
+accuracy_rf
+```
+
+#### ROC Curve and AUC
+
+```{r}
+y = as.numeric(dat$income == levels(dat$income)[2])
+classified = as.numeric(predict(rf) == levels(dat$income)[2])
+pred_roc = prediction(classified, y)
+roc = performance(pred_roc, measure = "tpr", x.measure = "fpr") 
+plot(roc)
+abline(0, 1, lty = 2)
+roc_per = performance(pred_roc, measure="auc") 
+auc = slot(roc_per, 'y.values')[[1]]
+paste("The AUC statistic of the selected model is", round(auc, 4))
+```
+
+### Model Selection
+
+- Validate your best supervised classifier on the test set.
+- Compute the confusion matrix.
+- Using the class "over 50K a year" as the positive event, calculate the _Sensitivity_ or _True Positive Rate_ (TPR), and the _Specificity_ or _True Negative Rate_ (TNR).
+- Plot the ROC curves of all the classifiers.
+
+#### Predicted Values
+
+```{r}
+# There is no reason to lower type 1 or type 2 error, so I choose 0.5 as my threshold
+y_test = dat_test$income
+pred_rp = predict(rp1, dat_test)[, 2] >= 0.5
+pred_rp = as.numeric(pred_rp)
+
+pred_bag = predict(bag, dat_test, type = "response") 
+pred_rf = predict(rf, dat_test, type = "response")
+```
+
+#### Confusion Matrices
+
+```{r}
+n_test = nrow(dat_test)
+# Classification Tree
+# Income <50 is encoded as 0, and >=50 is encoded as 1
+y_t = as.numeric(dat_test$income == levels(dat_test$income)[2])
+conf_mat_rp = confusionMatrix(pred_rp, y_t, positive = "1")
+conf_mat_rp$table
+conf_mat_rp$byClass[1:2]
+accuracy_rp = sum(diag(conf_mat_rp$table)) / n_test
+accuracy_rp
+
+# Bagged Tree
+conf_mat_bag = confusionMatrix(pred_bag, y_test, positive = levels(dat_test$income)[2])
+conf_mat_bag$table
+conf_mat_bag$byClass[1:2]
+accuracy_bag = sum(diag(conf_mat_bag$table)) / n_test
+accuracy_bag
+
+# Random Forest
+conf_mat_rf = confusionMatrix(pred_rf, y_test, positive = levels(dat_test$income)[2])
+conf_mat_rf$table
+conf_mat_rf$byClass[1:2]
+accuracy_rf = sum(diag(conf_mat_rf$table)) / n_test
+accuracy_rf
+
+```
+
+
+```{r}
+# Classification Tree
+y = y_t
+classified = pred_rp
+pred_roc = prediction(classified, y)
+roc = performance(pred_roc, measure = "tpr", x.measure = "fpr") 
+plot(roc)
+abline(0, 1, lty = 2)
+roc_per = performance(pred_roc, measure="auc") 
+auc = slot(roc_per, 'y.values')[[1]]
+paste("The AUC statistic of classification tree model is", round(auc, 4))
+
+# Bagged Tree
+classified = as.numeric(pred_bag) - 1
+pred_roc = prediction(classified, y)
+roc = performance(pred_roc, measure = "tpr", x.measure = "fpr") 
+plot(roc)
+abline(0, 1, lty = 2)
+roc_per = performance(pred_roc, measure="auc") 
+auc = slot(roc_per, 'y.values')[[1]]
+paste("The AUC statistic of bagged tree model is", round(auc, 4))
+
+# Random Forest
+classified = as.numeric(pred_rf) - 1
+pred_roc = prediction(classified, y)
+roc = performance(pred_roc, measure = "tpr", x.measure = "fpr") 
+plot(roc)
+abline(0, 1, lty = 2)
+roc_per = performance(pred_roc, measure="auc") 
+auc = slot(roc_per, 'y.values')[[1]]
+paste("The AUC statistic of random forest model is", round(auc, 4))
+```
