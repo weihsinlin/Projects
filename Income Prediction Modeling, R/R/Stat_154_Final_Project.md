@@ -2,33 +2,6 @@ Stat 154 - Fall 2017, Final Project
 ================
 Due date: December 10, 2017
 
-Submission Instructions
------------------------
-
-The final project is a practical project to be done individually or in a team of 2 members max (no teams with more than 2 members allowed).
-
-You will receive a link to a google sheet to be filled in with your team's name, the member names, and the corresponding email addresses.
-
-Each team will be invited to a BOX folder (via bConnected): <https://berkeley.account.box.com/login>. You should be able to log in using the email that appears on CalCentral (e.g. typically your `berkeley.edu` email).
-
-Each team must submit all the materials of their final project to the shared BOX folder.
-
-Each team's folder must contain a `README` file explaining the structure of the project. Here's a sample file structure of how your BOX folder may look like:
-
-      team01/
-         README.md
-         data/
-            ... # all the data files
-         R/
-            ... # all you R files here
-         report/
-            ... # mainly the pdf file
-            ... # (you could use an Rmd file)
-
-You can add more folders to the previous file structure.
-
-You must produce a single PDF file for the report.
-
 Data
 ----
 
@@ -38,11 +11,11 @@ The data set describes 15 variables on a sample of individuals from the US Censu
 
 ``` r
 # Read in training set
-train = read.csv("data/adult.data", header = FALSE)
+train = read.csv("../data/adult.data", header = FALSE)
 names(train) = c('age', 'workclass', 'fnlwgt', 'education', 'education.num', 'marital.status', 'occupation', 'relationship', 'race', 'sex', 'capital.gain', 'capital.loss', 'hours.per.week', 'native.country', 'income')
 
 # Read in test set
-test = read.csv("data/adult.test", header = FALSE)
+test = read.csv("../data/adult.test", header = FALSE)
 names(test) = c('age', 'workclass', 'fnlwgt', 'education', 'education.num', 'marital.status', 'occupation', 'relationship', 'race', 'sex', 'capital.gain', 'capital.loss', 'hours.per.week', 'native.country', 'income')
 ```
 
@@ -563,12 +536,7 @@ bag
 library(caret)
 ```
 
-    ## Warning: package 'caret' was built under R version 3.3.2
-
     ## Loading required package: lattice
-
-    ## Warning in as.POSIXlt.POSIXct(Sys.time()): unknown timezone 'zone/tz/2017c.
-    ## 1.0/zoneinfo/America/Vancouver'
 
 ``` r
 n = nrow(dat)
