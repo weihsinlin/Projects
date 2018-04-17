@@ -2,7 +2,7 @@
 title: "Ad Hoc Network Simulation Project"
 author: "Wei-Hsin(Philip) Lin, Yang Yang, Tien Nguyen"
 date: "10/25/2016"
-output: html_document
+output: github_document
 ---
 
 ## Introduction
