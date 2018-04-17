@@ -1,43 +1,49 @@
----
-title: "Titanic Survivor Analysis"
-author: "Philip Lin"
-date: "11/21/2017"
-output: github_document
----
+Titanic Survivor Analysis
+================
+Philip Lin
+11/21/2017
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+Data
+----
 
-## Data
+From <https://www.kaggle.com/c/titanic/data>
 
-From https://www.kaggle.com/c/titanic/data
-
-```{r}
+``` r
 training = read.csv("train.csv")
 training = na.omit(training)
 
 all(!duplicated(training[, 1]))
+```
+
+    ## [1] TRUE
+
+``` r
 all(!duplicated(training[, 4]))
+```
+
+    ## [1] TRUE
+
+``` r
 # Drop PassengerId and Name since they are all distinct 
 # Drop Ticket since it cause logistic regression diverges
 dat = training[, -c(1, 4, 9, 11)]
-
 ```
 
 ### Naive Logistic Regression
 
-```{r}
+``` r
 fit = glm(Survived ~., data = dat, family = binomial)
 err_rate = mean(as.numeric(fit$fitted.values > 0.5) != training$Survived)
 err_rate
 ```
 
+    ## [1] 0.1988796
+
 ### Variable Selection
 
 #### Forward and Backward Selection Using OLS
 
-```{r}
+``` r
 library(SignifReg)
 forward = SignifReg(Survived ~., data = dat, direction = "forward")
 backward = SignifReg(Survived ~., data = dat, direction = "backward")
@@ -46,15 +52,22 @@ for_mod = forward$model
 back_mod = backward$model
 
 all(sort(names(for_mod)) == sort(names(back_mod)))
+```
+
+    ## [1] TRUE
+
+``` r
 # Since forward and backward selection provide the same model, only one need to be tested 
 fit_for_back = glm(Survived ~., data = for_mod, family = binomial)
 err_rate_for_back = mean(as.numeric(fit_for_back$fitted.values > 0.5) != training$Survived)
 err_rate_for_back
 ```
 
+    ## [1] 0.1918768
+
 #### Backward Selection
 
-```{r}
+``` r
 back_dat = dat
 fit_back = glm(Survived ~., data = back_dat, family = binomial)
 err_rate_back = mean(as.numeric(fit_back$fitted.values > 0.5) != training$Survived)
@@ -79,9 +92,11 @@ err_rate_back = mean(as.numeric(fit_back$fitted.values > 0.5) != training$Surviv
 err_rate_back
 ```
 
+    ## [1] 0.1918768
+
 #### Forward Selection
 
-```{r}
+``` r
 for_dat = data.frame(Survived = dat[, 1])
 fit_for = glm(Survived ~., data = for_dat, family = binomial)
 err_rate_for = mean(as.numeric(fit_for$fitted.values > 0.5) != training$Survived)
@@ -114,41 +129,82 @@ err_rate_for = mean(as.numeric(fit_for$fitted.values > 0.5) != training$Survived
 err_rate_for
 ```
 
+    ## [1] 0.219888
+
 #### Confusion Matrix
 
-After performing variable selections, the best result I got was from the backward selection. 
+After performing variable selections, the best result I got was from the backward selection.
 
-```{r}
+``` r
 classified = as.numeric(fit_back$fitted.values > 0.5)
 observed = dat$Survived
 conf_mat = table(observed, classified)
 conf_mat
 ```
 
+    ##         classified
+    ## observed   0   1
+    ##        0 365  59
+    ##        1  78 212
+
 #### ROC Curve
 
-```{r}
+``` r
 library(ROCR)
+```
 
+    ## Loading required package: gplots
+
+    ## 
+    ## Attaching package: 'gplots'
+
+    ## The following object is masked from 'package:stats':
+    ## 
+    ##     lowess
+
+``` r
 pred_roc = prediction(classified, observed)
 
 roc = performance(pred_roc, measure = "tpr", x.measure = "fpr")
 plot(roc)
 abline(0, 1, lty = 2)
+```
 
+![](Titanic_Survivor_Analysis_files/figure-markdown_github/unnamed-chunk-7-1.png)
+
+``` r
 roc_per = performance(pred_roc, measure="auc")
 slot(roc_per, 'y.values')[[1]]
 ```
 
+    ## [1] 0.7959418
+
 #### Conclusion
 
-```{r}
+``` r
 library(caret)
+```
+
+    ## Loading required package: lattice
+
+    ## Loading required package: ggplot2
+
+``` r
 fit = fit_back
 dat = back_dat
 names(dat)
+```
+
+    ## [1] "Survived" "Pclass"   "Sex"      "Age"      "SibSp"    "Parch"
+
+``` r
 insample_error = err_rate_back
 insample_error
+```
+
+    ## [1] 0.1918768
+
+``` r
 set.seed(0336)
 folds = createFolds(1:nrow(back_dat))
 errors = c()
@@ -164,6 +220,8 @@ for(fold in folds) {
 mean(errors)
 ```
 
-After performing variable selections, the best model I obtained was the one contains Pclass, Sex, Age, and SibSp as explanatory variables.  
+    ## [1] 0.1971753
 
-Using the model to perform logistic regression, we have overall in-sample error rate of 0.1919, cross-validation error of 0.1972, and we have the AUC(area under curve) of ROC Curve of 0.8523, which indicate the model is somehow not too bad. 
+After performing variable selections, the best model I obtained was the one contains Pclass, Sex, Age, and SibSp as explanatory variables.
+
+Using the model to perform logistic regression, we have overall in-sample error rate of 0.1919, cross-validation error of 0.1972, and we have the AUC(area under curve) of ROC Curve of 0.8523, which indicate the model is somehow not too bad.
