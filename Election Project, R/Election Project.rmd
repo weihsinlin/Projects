@@ -2,10 +2,7 @@
 title: "Election Project"
 author: "Wei-Hsin (Philip) Lin, Tien Nguyen, Yang Yang, Jinjin Tang, Zhi Chao Poh"
 date: "12/9/2016"
-output:
-  word_document: default
-  pdf_document: default
-  html_document: default
+output: github_document
 ---
 
 ##Data Extraction Phase
